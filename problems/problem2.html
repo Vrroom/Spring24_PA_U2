@@ -32,8 +32,16 @@
 
     let gui = get_default_lil_gui();
 
-    engine.animation_loop(() => {
+    let settings = {
+      time_elapsed: 0,
+    };
 
+    gui.add(settings, 'time_elapsed').name('Time Elapsed:'); 
+
+    engine.animation_loop(() => {
+        let t = engine.get_time_elapsed(); 
+        settings.time_elapsed = t;
+        refresh_displays(gui);
     });
 
 </script>

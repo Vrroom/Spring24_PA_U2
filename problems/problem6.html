@@ -20,12 +20,138 @@
 </head>
 <body>
 <script type="module">
-    import {ThreeEngine} from "../js/utils/utils_three.js";
-
     // todo: recreate this visualization, demonstrating your understanding of displacement-based distance in SE(2)
     // todo: https://yale-cpsc-487-587-internal-djrakita-c95fa6c3239a481a48d29a6b0fd.gitlab.io/html/visualizations/SE2_distance2.html
     // todo: make sure you are using the displacement-based distance!
     // todo: or, feel free to come up with any visualization here that demonstrates your understanding of SE(2) distance
+
+    import {mul_matrix_matrix, mul_matrix_scalar} from "../../js/utils/utils_math.js";
+
+    function get_se2_mat (tx, ty, theta) { 
+      return [[Math.cos(theta), -Math.sin(theta), tx], [Math.sin(theta), Math.cos(theta), ty], [0, 0, 1]]; 
+    }
+
+    function inverse2by2 (m) {
+      let [[a, b], [c, d]] = m;
+      let det = a * d - b * c; 
+      let new_mat = [[d, -b], [-c, a]]; 
+      return mul_matrix_scalar(new_mat, 1.0 / det); 
+    }
+
+    function inverse_se_2(m) {
+      let [[a, b, tx], [c, d, ty], [e, f, g]] = m;
+      let rinv = inverse2by2([[a, b], [c, d]]); 
+      let [[aa, bb], [cc, dd]] = rinv;
+      let [[tx_], [ty_]] = mat_vec_prod(rinv, [[-tx], [-ty]]); 
+      return [[aa, bb, tx_], [cc, dd, ty_], [0, 0, 1]]; 
+    }
+
+    function disp(t1, t2) {
+      let m = mul_matrix_matrix(t2, inverse_se_2(t1)); 
+      return m;
+    }
+
+    function log_map(m) {
+      let a1 = Math.atan2(m[1][0], m[0][0]); 
+      let p, q;
+      if (Math.abs(a1) < 1e-5) {
+        p = 1 - ((a1 * a1) / 6) + (Math.pow(a1, 4) / 120); 
+        q = (a1 / 2) - (Math.pow(a1, 3) / 24) + (Math.pow(a1, 5) / 720); 
+      } else {
+        p = Math.sin(a1) / a1;
+        q = (1.0 - Math.cos(a1)) / a1;
+      }
+      let mat = [[p, -q], [q, p]]; 
+      let [[a2], [a3]] = mat_vec_prod(inverse2by2(mat), [[m[0][2]], [m[1][2]]]); 
+      return [a1, a2, a3];
+    }
+
+    function euclidean_dist(v1, v2) {
+      let [a, b, c] = v1;
+      let [e, f, g] = v2;
+      return Math.sqrt((a - e) * (a - e) + (b - f) * (b - f) + (c - g) * (c - g)); 
+    }
+
+    function norm(v1) {
+      let [a, b, c] = v1;
+      let [e, f, g] = [0, 0, 0];
+      return Math.sqrt((a - e) * (a - e) + (b - f) * (b - f) + (c - g) * (c - g)); 
+    }
+
+    function mat_vec_prod (m, v) {
+      let x = m[0][0] * v[0][0] + m[0][1] * v[1][0];
+      let y = m[1][0] * v[0][0] + m[1][1] * v[1][0];
+      return [[x], [y]];
+    }
+
+    function dist_se2(m1, m2) { 
+      return norm(log_map(disp(m1, m2))); 
+    }
+
+    import { ThreeEngine, get_default_lil_gui } from "../../js/utils/utils_three.js";
+    import {refresh_displays} from "../../js/utils/utils_three.js";
+
+    let engine = ThreeEngine.new_default_2d();
+
+    let settings = {
+        mesh_visible: false,
+        draw_points: true,
+        wireframe_visible: true,
+        point_size: 0.02,
+        tx1:0,
+        ty1:0,
+        theta1:0,
+        tx2:0,
+        ty2:0,
+        theta2:0,
+        distance:0,
+    }
+
+    let actions = {
+        reset_matrix: function() {
+            settings.theta = 0;
+            refresh_displays(gui);
+        }
+    };
+
+    let gui = get_default_lil_gui();
+
+    let folder1 = gui.addFolder('Transformation 1');
+    folder1.add(settings, 'tx1', -3.0, 3.0).name('Translation x');
+    folder1.add(settings, 'ty1', -3.0, 3.0).name('Translation y');
+    folder1.add(settings, 'theta1', -3.14159, 3.14159).name('Rotation Angle');
+
+    let folder2 = gui.addFolder('Transformation 2');
+    folder2.add(settings, 'tx2', -3.0, 3.0).name('Translation x');
+    folder2.add(settings, 'ty2', -3.0, 3.0).name('Translation y');
+    folder2.add(settings, 'theta2', -3.14159, 3.14159).name('Rotation Angle');
+
+    gui.add(settings, 'distance').name('Distance');
+
+    let m1 = get_se2_mat(2, 2, -1);
+    let m2 = get_se2_mat(2, 2, -1);
+
+    engine.animation_loop(function() {
+        let m1 = get_se2_mat(settings.tx1, settings.ty1, settings.theta1);
+        let m2 = get_se2_mat(settings.tx2, settings.ty2, settings.theta2);
+
+        settings.distance = dist_se2(m1, m2);
+      
+        let x1 = [settings.tx1 + Math.cos(settings.theta1), settings.ty1 + Math.sin(settings.theta1)];
+        let y1 = [settings.tx1 + -Math.sin(settings.theta1), settings.ty1 + Math.cos(settings.theta1)];
+
+        let x2 = [settings.tx2 + Math.cos(settings.theta2), settings.ty2 + Math.sin(settings.theta2)];
+        let y2 = [settings.tx2 + -Math.sin(settings.theta2), settings.ty2 + Math.cos(settings.theta2)];
+
+        engine.draw_debug_vector([settings.tx1,settings.ty1], x1, 0.035, undefined, 0xff0000);
+        engine.draw_debug_vector([settings.tx1,settings.ty1], y1, 0.035, undefined, 0xff00ff);
+
+        engine.draw_debug_vector([settings.tx2,settings.ty2], x2, 0.035, undefined, 0xaa0000);
+        engine.draw_debug_vector([settings.tx2,settings.ty2], y2, 0.035, undefined, 0xaa00aa);
+
+        refresh_displays(gui);
+    });
+
 
 </script>
 </body>
