@@ -25,7 +25,7 @@
     // todo: make sure you are using the displacement-based distance!
     // todo: or, feel free to come up with any visualization here that demonstrates your understanding of SE(2) distance
 
-    import {mul_matrix_matrix, mul_matrix_scalar} from "../../js/utils/utils_math.js";
+    import {mul_matrix_matrix, mul_matrix_scalar} from "../js/utils/utils_math.js";
 
     function get_se2_mat (tx, ty, theta) { 
       return [[Math.cos(theta), -Math.sin(theta), tx], [Math.sin(theta), Math.cos(theta), ty], [0, 0, 1]]; 
